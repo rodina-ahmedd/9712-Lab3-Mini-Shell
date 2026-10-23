@@ -396,6 +396,7 @@ void Command::execute()
                 }
             }
             // exec the command
+            signal(SIGINT, SIG_DFL);
             SimpleCommand *cmd = _simpleCommands[i];
             execvp(cmd->_arguments[0], cmd->_arguments);
 
@@ -451,6 +452,7 @@ SimpleCommand *Command::_currentSimpleCommand;
 
 int main()
 {
+    signal(SIGINT, SIG_IGN);
     Command::_currentCommand.prompt();
     return 0;
 }
