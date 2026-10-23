@@ -27,7 +27,50 @@
 #include <sstream>
 #include "command.h"
 #include "tokenizer.h"
+#include <errno.h> 
 
+int log_fd = -1;
+volatile sig_atomic_t child_changed = 0;
+
+void sigchld_handler(int){
+    child_changed = 1;
+}
+
+void logChild(pid_t pid, int status){
+    if (log_fd == -1)
+        return;
+
+    char line[160];
+    int len;
+
+    if (WIFEXITED(status)){
+        len = snprintf(line, sizeof(line),
+                       "Child process %ld terminated normally with exit status %d\n",
+                       (long)pid, WEXITSTATUS(status));
+    }
+    else if (WIFSIGNALED(status)){
+        len = snprintf(line, sizeof(line),
+                       "Child process %ld terminated by signal %d\n",
+                       (long)pid, WTERMSIG(status));
+    }
+    else
+    {
+        return;
+    }
+
+    if (len > 0 && len < (int)sizeof(line))
+        write(log_fd, line, len);
+}
+
+void reapChildren(){
+    int status;
+    pid_t pid;
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+        logChild(pid, status);
+
+    child_changed = 0;
+}
 
 void parse(std::vector<Token> &tokens)
 {
@@ -206,8 +249,9 @@ void Command::clear()
         }
 
         free(_simpleCommands[i]->_arguments);
-        free(_simpleCommands[i]);
+        delete(_simpleCommands[i]);//delete not freee
     }
+    _numberOfSimpleCommands = 0;
 
     if (_outFile)
     {
@@ -224,10 +268,12 @@ void Command::clear()
         free(_errFile);
     }
 
-    _numberOfSimpleCommands = 0;
-    _outFile = 0;
-    _inputFile = 0;
-    _errFile = 0;
+    //_numberOfSimpleCommands = 0;
+    _outFile = NULL;
+    _inputFile = NULL;
+    _errFile = NULL;
+    _out_error = 0;
+    _append = 0;
     _background = 0;
 }
 
@@ -252,7 +298,7 @@ void Command::print()
     printf("  Output       Input        Error        Err&Out       Background\n");
     printf("  ------------ ------------ ------------ ------------ ------------\n");
     printf("  %-12s %-12s %-12s %-12s %-12s\n", _outFile ? _outFile : "default",
-           _inputFile ? _inputFile : "default", _errFile ? _errFile : "default", _out_error == 1 ? _errFile : "default"
+           _inputFile ? _inputFile : "default", _errFile ? _errFile : "default", (_out_error && _errFile) ? _errFile : "default"
            ,_background ? "YES" : "NO");
     printf("\n\n");
 }
@@ -261,7 +307,29 @@ void Command::execute()
 {
     print();
     fflush(stdout);
-    if (_numberOfSimpleCommands == 0){//lw mfesh ay amr my3mlsh haga 
+    //exit good bye
+    if (_numberOfSimpleCommands == 1){
+        SimpleCommand *sc = _simpleCommands[0];
+        const char *name = sc->_arguments[0];
+        if (strcmp(name, "exit") == 0){
+            printf("Good bye!!\n");
+            clear();
+            exit(0);
+        }
+        if (strcmp(name, "cd") == 0){
+            const char *dir = (sc->_numberOfArguments > 1)
+                                  ? sc->_arguments[1]
+                                  : getenv("HOME");
+
+            if (dir == NULL || chdir(dir) != 0)
+                perror("cd");
+
+            clear();
+            return;
+        }
+    }
+    //lw mfesh ay amr my3mlsh haga 
+    if (_numberOfSimpleCommands == 0){
         clear();
         return;
     }
@@ -421,8 +489,21 @@ void Command::execute()
 
     // lw mfish & wait for all children to finish lw fy & msh h wait 
     if (!_background){
-        for (pid_t pid : pids)
-            waitpid(pid, NULL, 0);
+        for (pid_t pid : pids){
+            int status;
+            pid_t result;
+
+            do{
+                result=waitpid(pid, &status, 0);
+            }
+            while (result== -1 && errno ==EINTR); 
+
+            if (result== pid)
+              logChild(pid,status);
+            else if (result== -1)
+              perror("waitpid");
+        }
+            
     }
 
     clear();
@@ -436,6 +517,7 @@ void Command::prompt()
     std::string input;
     while (true)
     {
+        reapChildren();
         printf("myshell>");
         fflush(stdout);
 
@@ -453,6 +535,13 @@ SimpleCommand *Command::_currentSimpleCommand;
 int main()
 {
     signal(SIGINT, SIG_IGN);
+    log_fd = open("log.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;  
+    sigaction(SIGCHLD, &sa, NULL);
     Command::_currentCommand.prompt();
     return 0;
 }

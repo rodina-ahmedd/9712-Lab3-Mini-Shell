@@ -1,0 +1,4 @@
+Child process 45200 terminated normally with exit status 0
+Child process 45260 terminated normally with exit status 0
+Child process 45222 terminated normally with exit status 0
+Child process 45297 terminated normally with exit status 0
