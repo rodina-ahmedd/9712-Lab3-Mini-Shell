@@ -137,11 +137,6 @@ void parse(std::vector<Token> &tokens)
         return;
     }
 
-
-    
-
-    
-
     currentCommand.execute();
     /*
       Implement this function 
@@ -265,13 +260,175 @@ void Command::print()
 void Command::execute()
 {
     print();
-    /*
-        Write your code here
-    */
+    fflush(stdout);
+    if (_numberOfSimpleCommands == 0){//lw mfesh ay amr my3mlsh haga 
+        clear();
+        return;
+    }
+    std::vector<pid_t> pids;//list pids ahot fyha num of process
+    int previousPipe = -1; // file descriptor ely by2ra mno el current amr
+    for (int i = 0; i < _numberOfSimpleCommands; i++){
+        int pipefd[2] = {-1, -1};//matrix for read , write
+        bool isLast = (i == _numberOfSimpleCommands - 1);// bshof lw da last
+        if (!isLast){//lw msh akher wahd by3ml pipe 
+            if (pipe(pipefd) == -1){
+                perror("pipe");
+                if (previousPipe != -1)
+                    close(previousPipe);
+
+                for (pid_t pid : pids)
+                    waitpid(pid, NULL, 0);
+
+                clear();
+                return;
+            }
+        }
+        // fork create
+        pid_t pid = fork();
+
+        if (pid == -1)
+        {
+            perror("fork");
+
+            if (previousPipe != -1)
+                close(previousPipe);
+            if (pipefd[0] != -1)
+                close(pipefd[0]);
+            if (pipefd[1] != -1)
+                close(pipefd[1]);
+
+            for (pid_t childPid : pids)
+                waitpid(childPid, NULL, 0);
+
+            clear();
+            return;
+        }
+        if (pid == 0){
+            // Read input from previous command
+            if (previousPipe != -1) {
+                if (dup2(previousPipe, STDIN_FILENO) == -1){
+                    perror("dup2");
+                    _exit(1);
+                }
+            }
+                        
+            // Send output to next command
+            if (!isLast){
+                if (dup2(pipefd[1], STDOUT_FILENO) == -1){
+                    perror("dup2");
+                    _exit(1);
+                }
+            }
+
+            if (previousPipe != -1)
+                close(previousPipe);
+            if (pipefd[0] != -1)
+                close(pipefd[0]);
+            if (pipefd[1] != -1)
+                close(pipefd[1]);
+
+            // I/p redirection <
+            if (i == 0 && _inputFile != NULL){
+                int fd = open(_inputFile, O_RDONLY);
+
+                if (fd == -1){
+                    perror(_inputFile);
+                    _exit(1);
+                }
+
+                if (dup2(fd, STDIN_FILENO) == -1){
+                    perror("dup2");
+                    close(fd);
+                    _exit(1);
+                }
+
+                close(fd);
+            }
+            // o/p redirection > or >>
+            if (isLast && _outFile != NULL){
+                int flags = O_WRONLY | O_CREAT;//write only| lw file msh mwgod y3ml wahd
+
+                flags |= _append ? O_APPEND : O_TRUNC; // >delete contant | >>write fy elakher
+
+                int fd = open(_outFile, flags, 0666);
+
+                if (fd == -1){
+                    perror(_outFile);
+                    _exit(1);
+                }
+
+                if (dup2(fd, STDOUT_FILENO) == -1){
+                    perror("dup2");
+                    close(fd);
+                    _exit(1);
+                }
+
+                close(fd);
+            }
+            // Error redirection 2>
+            if (isLast && _errFile != NULL){
+                if (_out_error){
+                    // >>& : send stderr to the same destination as stdout
+                    if (dup2(STDOUT_FILENO, STDERR_FILENO) == -1){
+                        perror("dup2");
+                        _exit(1);
+                    }
+                }
+                else{
+                    int fd = open(
+                        _errFile,
+                        O_WRONLY | O_CREAT | O_TRUNC,
+                        0666
+                    );
+
+                    if (fd == -1){
+                        perror(_errFile);
+                        _exit(1);
+                    }
+
+                    if (dup2(fd, STDERR_FILENO) == -1){
+                        perror("dup2");
+                        close(fd);
+                        _exit(1);
+                    }
+
+                    close(fd);
+                }
+            }
+            // exec the command
+            SimpleCommand *cmd = _simpleCommands[i];
+            execvp(cmd->_arguments[0], cmd->_arguments);
+
+            //if execvp fails
+            perror(cmd->_arguments[0]);
+            _exit(127);// from child 127 en el amr msh mwgod 
+        }
+        //parent
+        pids.push_back(pid);
+
+        if (previousPipe != -1)
+            close(previousPipe);
+
+        if (pipefd[1] != -1)
+            close(pipefd[1]);
+
+        previousPipe = pipefd[0];
+    }
+
+    if (previousPipe != -1)// bn2fl akher pipe open
+        close(previousPipe);
+
+    // lw mfish & wait for all children to finish lw fy & msh h wait 
+    if (!_background){
+        for (pid_t pid : pids)
+            waitpid(pid, NULL, 0);
+    }
 
     clear();
-   // prompt();
 }
+
+   // prompt();
+
 
 void Command::prompt()
 {

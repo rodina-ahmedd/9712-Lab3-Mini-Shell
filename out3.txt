@@ -1,0 +1,15 @@
+total 296
+drwxrwxr-x 3 rodina rodina   4096 Oct 23 23:55 .
+drwxr-xr-x 3 rodina rodina   4096 Oct 22 20:44 ..
+drwxrwxr-x 7 rodina rodina   4096 Oct 23 14:36 .git
+-rw-rw-r-- 1 rodina rodina     12 Oct 23 08:56 .gitignore
+-rw-rw-r-- 1 rodina rodina    243 Oct 24  2025 Makefile
+-rw-rw-r-- 1 rodina rodina  13182 Oct 23 23:43 command.cc
+-rw-rw-r-- 1 rodina rodina    649 Oct 24  2025 command.h
+-rwxrwxr-x 1 rodina rodina 244424 Oct 23 23:53 myshell
+-rw-rw-r-- 1 rodina rodina    677 Oct 23 23:52 out.txt
+-rw-rw-r-- 1 rodina rodina      0 Oct 23 23:53 out2.txt
+-rw-rw-r-- 1 rodina rodina      0 Oct 23 23:55 out3.txt
+-rw-rw-r-- 1 rodina rodina      6 Oct 23 23:49 output.txt
+-rw-rw-r-- 1 rodina rodina   1954 Oct 24  2025 tokenizer.cc
+-rw-rw-r-- 1 rodina rodina    456 Oct 24  2025 tokenizer.h
