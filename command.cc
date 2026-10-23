@@ -117,7 +117,7 @@ void parse(std::vector<Token> &tokens)
         }
          else
     {
-        // مفيش arguments: لو فيه pipe قبله يبقى "ls |" من غير أمر بعده
+        //mfesh arg ls | 
         if (currentCommand._numberOfSimpleCommands > 0)
         {
             fprintf(stderr, "Syntax error: missing command after pipe\n");
@@ -128,7 +128,7 @@ void parse(std::vector<Token> &tokens)
         delete currentSimpleCommand;
     }
 
-    // مفيش أي أمر (زي "> out" لوحده)
+    // mfesh ay amr lwahdo zy (>out)
     if (currentCommand._numberOfSimpleCommands == 0)
     {
         if (tokens.size() > 1)
